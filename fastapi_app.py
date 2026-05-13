@@ -4,6 +4,7 @@ import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from litellm import completion
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import json
 
