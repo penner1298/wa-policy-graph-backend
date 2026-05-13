@@ -1,0 +1,460 @@
+Type,Name
+County,Grays Harbor County
+County,Pierce County
+County,Clallam County
+County,Okanogan County
+County,Clark County
+County,Skamania County
+County,Snohomish County
+County,Kitsap County
+County,Franklin County
+County,Yakima County
+County,Grant County
+County,Cowlitz County
+County,Chelan County
+County,Whitman County
+County,Walla Walla County
+County,Jefferson County
+County,Columbia County
+County,San Juan County
+County,Wahkiakum County
+County,Spokane County
+County,Douglas County
+County,Stevens County
+County,Whatcom County
+County,Pacific County
+County,Thurston County
+County,Pend Oreille County
+County,Mason County
+County,King County
+County,Adams County
+County,Ferry County
+County,Island County
+County,Skagit County
+County,Kittitas County
+County,Asotin County
+County,Benton County
+County,Quillehuyte County
+County,Garfield County
+County,Klickitat County
+County,Lincoln County
+County,Lewis County
+City,Kahlotus
+City,Grand Coulee
+City,Gig Harbor
+City,Ellensburg
+City,Spokane
+City,Brewster
+City,Hunts Point
+City,West Richland
+City,Tieton
+City,Ridgefield
+City,Bridgeport
+City,Cusick
+City,Burlington
+City,Cosmopolis
+City,Ocean Shores
+City,Concrete
+City,Wilkeson
+City,Bucoda
+City,Brier
+City,Ilwaco
+City,Auburn
+City,Woodland
+City,Olympia
+City,Coulee Dam
+City,Cle Elum
+City,Naches
+City,Newcastle
+City,Tenino
+City,Chewelah
+City,Pe Ell
+City,Rosalia
+City,Latah
+City,Woodway
+City,Bellingham
+City,Airway Heights
+City,Colton
+City,Waterville
+City,Mabton
+City,Liberty Lake
+City,Bonney Lake
+City,Soap Lake
+City,Fairfield
+City,Everett
+City,Vader
+City,Tri-Cities
+City,Othello
+City,Springdale
+City,Albion
+City,Beaux Arts Village
+City,La Center
+City,Pacific
+City,South Prairie
+City,Spangle
+City,Uniontown
+City,Rock Island
+City,Sprague
+City,Coupeville
+City,Aberdeen
+City,Edgewood
+City,Pasco
+City,Moxee
+City,Colfax
+City,Harrah
+City,Spokane Valley
+City,Waverly
+City,Elmer City
+City,Harrington
+City,Longview
+City,Kittitas
+City,Puyallup
+City,Yarrow Point
+City,Endicott
+City,Quincy
+City,Colville
+City,Wapato
+City,Mountlake Terrace
+City,Gold Bar
+City,Shelton
+City,Palouse
+City,Lynden
+City,Orting
+City,Creston
+City,Lind
+City,Tonasket
+City,Omak
+City,La Conner
+City,Walla Walla
+City,Bingen
+City,Camas
+City,Lakewood
+City,Everson
+City,Okanogan
+City,Goldendale
+City,Algona
+City,LaCrosse
+City,Westport
+City,Federal Way
+City,Long Beach
+City,Port Townsend
+City,Oakesdale
+City,Steilacoom
+City,Burien
+City,Cheney
+City,Normandy Park
+City,Bremerton
+City,Lake Forest Park
+City,Yacolt
+City,Winlock
+City,Lynnwood
+City,Duvall
+City,Milton
+City,South Cle Elum
+City,North Bend
+City,Connell
+City,Edmonds
+City,Port Orchard
+City,Odessa
+City,Arlington
+City,Lyman
+City,Twisp
+City,Hamilton
+City,Sunnyside
+City,Selah
+City,Deer Park
+City,Tacoma
+City,Reardan
+City,Westlake
+City,Rockford
+City,Yelm
+City,Richland
+City,"Fairhaven, Bellingham"
+City,Northport
+City,Kelso
+City,Medical Lake
+City,Napavine
+City,White Salmon
+City,Centralia
+City,Oroville
+City,Sumner
+City,Tukwila
+City,Shoreline
+City,Darrington
+City,Prescott
+City,College Place
+City,Garfield
+City,North Bonneville
+City,George
+City,Redmond
+City,Sequim
+City,Pateros
+City,Index
+City,Langley
+City,Lamont
+City,Mukilteo
+City,Newport
+City,Mesa
+City,Union Gap
+City,Roslyn
+City,Malden
+City,Pomeroy
+City,Kennewick
+City,Kirkland
+City,Snohomish
+City,Marysville
+City,Ione
+City,Hatton
+City,Yakima
+City,Friday Harbor
+City,Asotin
+City,Moses Lake
+City,Stevenson
+City,South Bend
+City,Clarkston
+City,Mossyrock
+City,Black Diamond
+City,Starbuck
+City,Vancouver
+City,Ferndale
+City,Medina
+City,Metaline
+City,Farmington
+City,Stanwood
+City,Grandview
+City,Anacortes
+City,Carnation
+City,Pullman
+City,Woodinville
+City,Skykomish
+City,Leavenworth
+City,Fife
+City,Mount Vernon
+City,Oak Harbor
+City,University Place
+City,Fircrest
+City,Kenmore
+City,Toppenish
+City,Carbonado
+City,Cashmere
+City,Ritzville
+City,Forks
+City,Dayton
+City,Blaine
+City,Rainier
+City,Washougal
+City,Lacey
+City,Nespelem
+City,Chelan
+City,Granger
+City,Metaline Falls
+City,Wilson Creek
+City,Davenport
+City,Port Angeles
+City,Bothell
+City,Mansfield
+City,Poulsbo
+City,Tumwater
+City,Sedro-Woolley
+City,Sultan
+City,Electric City
+City,Hartline
+City,Mill Creek
+City,Montesano
+City,Republic
+City,Benton City
+City,Castle Rock
+City,Warden
+City,Oakville
+City,St. John
+City,Buckley
+City,Lake Stevens
+City,Monroe
+City,Morton
+City,Kettle Falls
+City,Renton
+City,Sumas
+City,Ephrata
+City,Waitsburg
+City,Wenatchee
+City,Chehalis
+City,Hoquiam
+City,Bainbridge Island
+City,Des Moines
+City,Nooksack
+City,Coulee City
+City,Maple Valley
+City,Wilbur
+City,Tekoa
+City,Millwood
+City,Riverside
+City,Kalama
+City,Mercer Island
+City,Enumclaw
+City,Raymond
+City,Winthrop
+City,Covington
+City,Conconully
+City,Cathlamet
+City,Sammamish
+City,Zillah
+City,Kent
+City,Roy
+City,Toledo
+City,DuPont
+City,East Wenatchee
+City,Prosser
+City,SeaTac
+City,Washtucna
+City,Krupp
+City,Entiat
+City,McCleary
+City,Snoqualmie
+City,Elma
+City,Marcus
+City,Ruston
+City,Battle Ground
+City,Royal City
+City,Bellevue
+City,Clyde Hill
+City,Eatonville
+City,Issaquah
+City,Granite Falls
+City,Almira
+City,Mattawa
+School District,Onion Creek School District
+School District,Issaquah School District
+School District,Grandview School District
+School District,Mount Pleasant School District
+School District,Bainbridge Island School District
+School District,Mercer Island School District
+School District,Tahoma School District
+School District,South Kitsap School District
+School District,Adna School District
+School District,Mount Adams School District
+School District,Quincy School District
+School District,Quillayute Valley School District
+School District,Anacortes School District
+School District,Wapato School District
+School District,Sunnyside School District
+School District,Edmonds School District
+School District,Stevenson-Carson School District
+School District,Thorp School District
+School District,Wahluke School District
+School District,South Whidbey School District
+School District,Snoqualmie Valley School District
+School District,Steilacoom Historical School District
+School District,Wenatchee School District
+School District,Bremerton School District
+School District,Blaine School District
+School District,Union Gap School District
+School District,Orient School District
+School District,White River School District
+School District,Oak Harbor School District
+School District,Reardan-Edwall School District
+School District,Bellevue School District
+School District,Rainier School District
+School District,Griffin School District
+School District,Puyallup School District
+School District,Lynden School District
+School District,Battle Ground School District
+School District,Kennewick School District
+School District,Mukilteo School District
+School District,Chehalis School District
+School District,South Bend School District
+School District,Franklin Pierce School District
+School District,Benge School District
+School District,Shelton School District
+School District,Highline School District
+School District,Eastmont School District
+School District,Garfield School District
+School District,Sedro-Woolley School District
+School District,Index School District
+School District,McCleary School District
+School District,Brinnon School District
+School District,Ellensburg School District
+School District,Coupeville School District
+School District,White Pass School District
+School District,Colfax School District
+School District,Inchelium School District
+School District,Northport School District
+School District,Burlington-Edison School District
+School District,Bridgeport School District
+School District,Renton School District
+School District,University Place School District
+School District,Pullman School District
+School District,Yakima School District
+School District,Ferndale School District
+School District,Northshore School District
+School District,Waterville School District
+School District,Bellingham School District
+School District,Creston School District
+School District,Monroe School District
+School District,Lake Washington School District
+School District,Kent School District
+School District,Marysville School District
+School District,Tumwater School District
+School District,Mead School District
+School District,North Mason School District
+School District,Yelm School District
+School District,Carbonado School District
+School District,Great Northern School District
+School District,Almira School District
+School District,Damman School District
+School District,Auburn School District
+School District,Pasco School District
+School District,North Kitsap School District
+School District,Granite Falls School District
+School District,Ocosta School District
+School District,Port Angeles School District
+School District,Cape Flattery School District
+School District,Tukwila School District
+School District,Boistfort School District
+School District,Omak School District
+School District,Sumner School District
+School District,Arlington School District
+School District,Everett School District
+School District,Snohomish School District
+School District,Zillah School District
+School District,Camas School District
+School District,Shoreline School District
+School District,Nine Mile Falls School District
+School District,Bickleton School District
+School District,Toppenish School District
+School District,Wahkiakum School District
+School District,Central Kitsap School District
+School District,Coulee-Hartline School District
+School District,Colville School District
+School District,Hockinson School District
+School District,Olympia School District
+School District,Peninsula School District
+School District,Centerville School District
+School District,Clover Park School District
+School District,Darrington School District
+School District,Cheney School District
+School District,Enumclaw School District
+School District,Federal Way School District
+School District,College Place School District
+School District,Nooksack Valley School District
+School District,Lake Stevens School District
+School District,Asotin-Anatone School District
+School District,Kiona-Benton City School District
+Port,Port of Walla Walla (page does not exist)
+Port,Port of Port Angeles (page does not exist)
+Port,Port of Mattawa
+Port,Port of Grays Harbor
+Port,Port of Anacortes (page does not exist)
+Port,Port of Bellingham
+Port,Port of Olympia
+Port,Port of Whitman County
+Port,Port of Seattle
+Port,Port of Centralia
+Port,Port of Poulsbo
+Port,Port of Skagit County
+Port,Port of Longview
+Port,Port of Everett
+Port,Port of Tacoma
+Port,Port of Vancouver USA
+Port,Port of Chehalis
+Port,Port of Kalama (page does not exist)
+Port,Port of Camas-Washougal
