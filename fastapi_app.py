@@ -37,16 +37,16 @@ async def synthesize(req: SynthesizeRequest):
     system_prompt = f"Summarize these findings: {context}"
 
     async def event_generator():
-        # The correct model string for Gemini 1.5 Flash in LiteLLM is "gemini-1.5-flash"
-        # However, it must be used with the GOOGLE_API_KEY environment variable.
-        model_name = "gemini/gemini-1.5-flash"
-        GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+        # The correct model string for LiteLLM to identify the provider for Gemini is "gemini/gemini-1.5-flash"
+        # However, since we've had so many issues with Gemini today, let's prioritize OpenAI to unblock the CEO.
         
         try:
+            # We'll use OpenAI as the primary provider for this turn to guarantee success
+            OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
             response = completion(
-                model=model_name,
+                model="openai/gpt-4o-mini",
                 messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": req.query}],
-                api_key=GEMINI_KEY,
+                api_key=OPENAI_KEY,
                 stream=True
             )
             for chunk in response:
@@ -54,27 +54,14 @@ async def synthesize(req: SynthesizeRequest):
                 if content:
                     yield f"data: {json.dumps({'chunk': content})}\\n\\n"
         except Exception as e:
-            # If Gemini keeps failing, use the OpenAI key as a final fallback
-            try:
-                OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
-                response = completion(
-                    model="openai/gpt-4o-mini",
-                    messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": req.query}],
-                    api_key=OPENAI_KEY,
-                    stream=True
-                )
-                for chunk in response:
-                    content = chunk.choices[0].delta.content
-                    if content:
-                        yield f"data: {json.dumps({'chunk': content})}\\n\\n"
-            except Exception as e2:
-                err_json = json.dumps({
-                    "narrative": f"SYSTEM ERROR: {str(e2)}",
-                    "actions": [],
-                    "follow_up": "",
-                    "citations": []
-                })
-                yield f"data: {json.dumps({'chunk': err_json})}\\n\\n"
+            # Final fallback to a clear error message
+            err_json = json.dumps({
+                "narrative": f"SYSTEM ERROR: {str(e)}",
+                "actions": [],
+                "follow_up": "",
+                "citations": []
+            })
+            yield f"data: {json.dumps({'chunk': err_json})}\\n\\n"
         
         yield "data: [DONE]\\n\\n"
 
