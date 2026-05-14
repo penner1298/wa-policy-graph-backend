@@ -241,7 +241,7 @@ Return your response AS A VALID JSON OBJECT with the following exact keys:
 
     try:
         response = completion(
-            model="gemini/gemini-3.0-flash-latest",
+            model="gemini/gemini-2.0-flash-001",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": req.query}
