@@ -216,11 +216,22 @@ Return your response AS A VALID JSON OBJECT with the following exact keys:
         )
         
         async def event_generator():
-            for chunk in response:
-                content = chunk.choices[0].delta.content
-                if content:
-                    yield f"data: {json.dumps({'chunk': content})}\n\n"
-            yield "data: [DONE]\n\n"
+            import json
+            try:
+                for chunk in response:
+                    content = chunk.choices[0].delta.content
+                    if content:
+                        yield f"data: {json.dumps({'chunk': content})}\n\n"
+            except Exception as e:
+                err = json.dumps({
+                    "narrative": f"SYSTEM ERROR: The connection to the LLM Provider failed ({str(e)}). The API key might be expired.",
+                    "actions": [],
+                    "follow_up": "",
+                    "citations": []
+                })
+                yield f"data: {json.dumps({'chunk': err})}\n\n"
+            finally:
+                yield "data: [DONE]\n\n"
             
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:
