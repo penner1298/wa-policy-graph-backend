@@ -27,9 +27,6 @@ class SynthesizeRequest(BaseModel):
 
 @app.post("/api/v1/oracle/synthesize")
 async def synthesize(req: SynthesizeRequest):
-    # Log environment for debugging
-    print(f"Synthesize called with: {req}")
-    
     conn = sqlite3.connect(SAO_DB_PATH)
     c = conn.cursor()
     c.execute("SELECT jurisdiction, summary FROM findings WHERE jurisdiction LIKE '%Seattle%' LIMIT 5")
@@ -40,13 +37,14 @@ async def synthesize(req: SynthesizeRequest):
     system_prompt = f"Summarize these findings: {context}"
 
     async def event_generator():
-        # Get keys inside the generator to ensure fresh environment access
+        # Vertex AI / Google AI Studio specific model string for LiteLLM
+        # The correct format is gemini-1.5-flash (no gemini/ prefix if using standard litellm logic, or google/gemini-1.5-flash)
+        model_name = "google/gemini-1.5-flash"
         GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
         
         try:
-            # Revert to Gemini 1.5 Flash (the most likely key to be valid in the environment)
             response = completion(
-                model="gemini/gemini-1.5-flash",
+                model=model_name,
                 messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": req.query}],
                 api_key=GEMINI_KEY,
                 stream=True
@@ -56,7 +54,6 @@ async def synthesize(req: SynthesizeRequest):
                 if content:
                     yield f"data: {json.dumps({'chunk': content})}\\n\\n"
         except Exception as e:
-            # Fallback to a clear error message in the UI
             err_json = json.dumps({
                 "narrative": f"SYSTEM ERROR: {str(e)}",
                 "actions": [],
