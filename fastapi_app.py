@@ -197,10 +197,10 @@ DATABASE CONTEXT:
 {context_str}
 
 CRITICAL CONSTRAINTS (THE "NO-PARROT" RULE):
-1. DO NOT summarize or repeat the User's Input back to them. The user already knows what they pasted.
-2. If the user pasted an article about a recent event, your ONLY job is to explain the historical context using the DATABASE CONTEXT.
+1. DO NOT summarize or repeat the User's Input back to them.
+2. YOU MUST READ THE ENTIRE DATABASE CONTEXT. If the user asks about a specific city (like Seattle) and that city is in the DATABASE CONTEXT, you MUST summarize those findings. DO NOT claim the city is missing if it is in the context.
 3. List any other jurisdictions facing identical vulnerabilities found in the DATABASE CONTEXT.
-4. If the user's input mentions an event or date you DO NOT have in the DATABASE CONTEXT, explicitly state: "I do not have official documents from [Date] yet, but historical records show..."
+4. If the user's input mentions an event or date you DO NOT have in the DATABASE CONTEXT, explicitly state that it is missing.
 5. Return VALID JSON.
 
 Return your response AS A VALID JSON OBJECT with the following exact keys:
