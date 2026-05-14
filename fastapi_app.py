@@ -55,30 +55,57 @@ async def search_jurisdiction(q: str):
 
 @app.post("/api/v1/oracle/synthesize")
 async def synthesize(req: SynthesizeRequest):
-    import re
-    stop_words = {"what", "why", "how", "when", "where", "who", "did", "does", "do", "has", "have", "had", "fail", "failed", "pass", "passed", "its", "their", "the", "a", "an", "is", "are", "was", "were", "audit", "audits", "findings", "finding", "about", "tell", "me", "show", "give", "can", "you", "city", "of", "county", "town", "district"}
+    import json
     
-    raw_input = req.jurisdiction + " " + req.query
-    words = re.findall(r'\b\w+\b', raw_input.lower())
-    keywords = list(set([w for w in words if w not in stop_words and len(w) > 2]))
+    # --- STEP 1: MEMBRANE DETERMINISTIC INTENT EXTRACTION ---
+    membrane_prompt = """You are the Membrane Semantic Gate.
+Your job is to extract rigid, unbiased search entities from the user's input.
+Ignore conversational filler. Do not answer the question. Do not summarize.
+Extract the target jurisdiction (City/County name) and 2 to 4 highly specific keywords or phrases (e.g. "police department", "interfund loan", "budget").
+
+Return ONLY valid JSON in this exact format:
+{
+  "jurisdiction": "City Name",
+  "keywords": ["keyword1", "keyword2"]
+}
+"""
     
+    try:
+        mem_resp = completion(
+            model="gemini/gemini-2.5-flash",
+            messages=[
+                {"role": "system", "content": membrane_prompt},
+                {"role": "user", "content": req.jurisdiction + " " + req.query}
+            ],
+            api_key=GEMINI_API_KEY
+        )
+        mem_content = mem_resp.choices[0].message.content.strip()
+        if mem_content.startswith("```json"):
+            mem_content = mem_content[7:-3]
+        elif mem_content.startswith("```"):
+            mem_content = mem_content[3:-3]
+        
+        extracted = json.loads(mem_content)
+        ext_jurisdiction = extracted.get("jurisdiction", req.jurisdiction)
+        keywords = extracted.get("keywords", [])
+    except Exception as e:
+        print("Membrane Extraction Failed:", e)
+        ext_jurisdiction = req.jurisdiction
+        # Fallback to simple regex if Membrane fails
+        stop_words = {"what", "why", "how", "when", "where", "who", "did", "does", "do", "has", "have", "had", "fail", "failed", "pass", "passed", "its", "their", "the", "a", "an", "is", "are", "was", "were", "audit", "audits", "findings", "finding", "about", "tell", "me", "show", "give", "can", "you", "city", "of", "county", "town", "district"}
+        words = re.findall(r'\b\w+\b', (req.jurisdiction + " " + req.query).lower())
+        keywords = list(set([w for w in words if w not in stop_words and len(w) > 2]))
+
+    # --- STEP 2: DUMB QUERY (NO AGENTIC BIAS) ---
     conn = sqlite3.connect(SAO_DB_PATH)
     c = conn.cursor()
-    
     conn_muni = sqlite3.connect("municipal_intent.db")
     c_muni = conn_muni.cursor()
     
-    seattle_match = "seattle" in raw_input.lower()
+    sao_rows = []
+    muni_rows = []
     
-    if seattle_match:
-        c.execute("SELECT jurisdiction, report_num, type, category, dollar_impact, summary, root_cause FROM findings WHERE jurisdiction LIKE '%Seattle%' LIMIT 20")
-        sao_rows = c.fetchall()
-        try:
-            c_muni.execute("SELECT jurisdiction, event_id, committee, meeting_date, key_action, vendor, dollar_amount, vote_outcome FROM merged_actions WHERE jurisdiction LIKE '%seattle%' LIMIT 10")
-            muni_rows = c_muni.fetchall()
-        except:
-            muni_rows = []
-    elif not keywords:
+    if not keywords:
         c.execute("SELECT jurisdiction, report_num, type, category, dollar_impact, summary, root_cause FROM findings LIMIT 20")
         sao_rows = c.fetchall()
         try:
@@ -108,61 +135,59 @@ async def synthesize(req: SynthesizeRequest):
 
     conn.close()
     conn_muni.close()
-
     
+    # --- STEP 3: SEMANTIC BOUNCER / NO-DATA GATE ---
     if not sao_rows and not muni_rows:
         return {
-            "narrative": f"As the Washington Policy Graph Oracle, I must inform you that I cannot answer your specific question regarding {req.jurisdiction} because there are no SAO findings or recent municipal records available in the database.",
+            "narrative": f"I have searched the Policy Graph. While I understand you are asking about {ext_jurisdiction}, I do not currently have verified municipal documents or SAO findings expanding on this event yet. Assign me to monitor this topic and I will alert you when official documents are ingested.",
             "actions": ["Search another agency", "View statewide trends", "Analyze regional impacts"],
             "follow_up": "What other cities have records available?",
             "citations": []
         }
     
+    # --- STEP 4: FINAL STITCH (STRICT CONSTRAINT) ---
     context_lines = []
     for r in sao_rows:
         impact_str = f"${r[4]:,}" if r[4] else "None"
         arn = str(r[1]).replace('-', '')
-        # All SAO audits in this DB are from the 2024-2025 scraping batch.
-        context_lines.append(f"SAO AUDIT (2024/2025) - Agency: {r[0]} | Report #: {r[1]} | Type: {r[2]} | Category: {r[3]} | Impact: {impact_str}\nSummary: {r[5]}\nRoot Cause: {r[6]}\nSource URL: https://portal.sao.wa.gov/ReportSearch/Home/ViewReportFile?arn={arn}&isFinding=false&sp=false\n---")
+        context_lines.append(f"SAO AUDIT (2024/2025) - Agency: {r[0]} | Report #: {r[1]} | Impact: {impact_str}\nSummary: {r[5]}\nRoot Cause: {r[6]}\nSource URL: https://portal.sao.wa.gov/ReportSearch/Home/ViewReportFile?arn={arn}&isFinding=false&sp=false\n---")
         
     for r in muni_rows:
         impact_str = f"${r[6]:,}" if r[6] else "None"
         vendor_str = r[5] if r[5] else "None"
-        # Legistar meeting detail URL instead of legislation detail
-        context_lines.append(f"CITY COUNCIL ACTION - Agency: {r[0]} | Event ID: {r[1]} | Committee: {r[2]} | Date: {r[3]}\nAction: {r[4]}\nVendor: {vendor_str} | Impact: {impact_str} | Vote: {r[7]}\nSource URL: https://{str(r[0]).lower().replace(' ', '')}.legistar.com/Calendar.aspx\n---")
+        context_lines.append(f"CITY COUNCIL ACTION - Agency: {r[0]} | Date: {r[3]}\nAction: {r[4]}\nVendor: {vendor_str} | Impact: {impact_str}\nSource URL: https://{str(r[0]).lower().replace(' ', '')}.legistar.com/Calendar.aspx\n---")
         
     context_str = "\n".join(context_lines)
         
     system_prompt = f"""You are the Washington Policy Graph Oracle.
-You provide deep insights on municipal audits and policies. You cross-reference Financial Audits with City Council Actions to find systemic connections.
-The user is asking about: {req.jurisdiction}.
-Answer the user's question: "{req.query}".
+You provide deterministic, fact-based insights strictly derived from the provided database records.
 
-CORE DIRECTIVES:
-1. VOICE & STRUCTURE: Use sharp, simple, punchy language. No "school report" academic fluff. Use short sentences. **IMPORTANT: Break your response into 2-3 readable paragraphs separated by double newlines (\n\n). Do NOT return a single wall of text.**
-2. SYNTHESIS & RECENCY: You have access to both SAO Audits (2024-2025) and City Council Actions (which have exact dates). You MUST prioritize recency. Explicitly mention the year and date of the findings or council votes so the user knows how current the intelligence is. Cross-reference them when possible.
-3. CITATIONS: You MUST cite the specific Agency and Report Number / Event ID for every fact. Use inline bracketed citations like [Seattle City Light #2024-001].
-4. FORMAT: Return VALID JSON.
-5. SUGGESTED ACTIONS: The `actions` array MUST contain neutral, information-seeking topics or questions to encourage deeper reading (e.g., "View contract details", "Explore compliance history", "Show breakdown of funds"). Do NOT suggest leading, political, or action-taking directives.
-6. CITATIONS ARRAY: The `citations` field MUST be an array of objects containing a `text` label and a `url`. Extract the exact `Source URL` provided in the context below. Ensure it is a direct link.
+USER INPUT: "{req.query}"
+
+DATABASE CONTEXT:
+{context_str}
+
+CRITICAL CONSTRAINTS (THE "NO-PARROT" RULE):
+1. DO NOT summarize or repeat the User's Input back to them. The user already knows what they pasted.
+2. If the user pasted an article about a recent event, your ONLY job is to explain the historical context using the DATABASE CONTEXT.
+3. List any other jurisdictions facing identical vulnerabilities found in the DATABASE CONTEXT.
+4. If the user's input mentions an event or date you DO NOT have in the DATABASE CONTEXT, explicitly state: "I do not have official documents from [Date] yet, but historical records show..."
+5. Return VALID JSON.
 
 Return your response AS A VALID JSON OBJECT with the following exact keys:
 {{
-  "narrative": "Paragraph 1.\n\nParagraph 2.\n\nParagraph 3.",
+  "narrative": "Paragraph 1 (Historical context).\n\nParagraph 2 (Other jurisdictions).\n\nParagraph 3 (What is missing).",
   "actions": ["Information-seeking topic 1", "Information-seeking topic 2"],
   "follow_up": "Neutral question to explore more context",
   "citations": [
     {{"text": "Official Report Name/ID", "url": "https://..."}}
   ]
 }}
-
-Here is the context from the databases:
-{context_str}
 """
 
     try:
         response = completion(
-            model="gemini/gemini-3-flash-preview",
+            model="gemini/gemini-2.5-flash",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": req.query}
@@ -186,6 +211,7 @@ Here is the context from the databases:
             "follow_up": "",
             "citations": []
         }
+
 
 
 @app.get("/api/v1/feed/discoveries")
