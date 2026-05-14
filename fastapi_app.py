@@ -36,7 +36,7 @@ async def assign_mission(req: AssignRequest):
     return {"status": "success"}
 
 SAO_DB_PATH = "sao_2024.db"
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBE77WCd5DMI_kPpME4eQawnBXYHuaUtAo")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyADqDZM-kkvUAMGQsofUvMJrrfs6SFry_4")
 MEMBRANE_API_KEY = os.environ.get("MEMBRANE_API_KEY", "")
 
 class SearchQuery(BaseModel):
@@ -119,7 +119,10 @@ Return ONLY valid JSON in this exact format:
         # In fallback, try to guess the jurisdiction from the query if req is generic
         ext_jurisdiction = req.jurisdiction
         if req.jurisdiction == "Washington State" and keywords:
-             ext_jurisdiction = keywords[0].title() # Just guess the first keyword as the jurisdiction
+             # Normalize: strip trailing 's' or ''s' from the keyword to handle "Seattles" or "Seattle's"
+             raw_j = keywords[0].title()
+             ext_jurisdiction = re.sub(r"[']?s$", "", raw_j, flags=re.IGNORECASE)
+
 
 
     # --- STEP 2: DUMB QUERY (NO AGENTIC BIAS) ---
