@@ -70,22 +70,36 @@ Return ONLY valid JSON in this exact format:
 }
 """
     
+    import requests
     try:
-        mem_resp = completion(
-            model="gemini/gemini-2.5-flash",
-            messages=[
+        headers = {
+            "Authorization": f"Bearer {MEMBRANE_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "membrane-engagement-layer",
+            "messages": [
                 {"role": "system", "content": membrane_prompt},
                 {"role": "user", "content": req.jurisdiction + " " + req.query}
             ],
-            api_key=GEMINI_API_KEY
+            "response_format": {"type": "json_object"}
+        }
+        mem_resp = requests.post(
+            "https://membrane-api.com/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=15
         )
-        mem_content = mem_resp.choices[0].message.content.strip()
-        if mem_content.startswith("```json"):
-            mem_content = mem_content[7:-3]
-        elif mem_content.startswith("```"):
-            mem_content = mem_content[3:-3]
-        
-        extracted = json.loads(mem_content)
+        if mem_resp.status_code == 200:
+            mem_content = mem_resp.json()['choices'][0]['message']['content'].strip()
+            if mem_content.startswith("```json"):
+                mem_content = mem_content[7:-3]
+            elif mem_content.startswith("```"):
+                mem_content = mem_content[3:-3]
+            extracted = json.loads(mem_content)
+        else:
+            print("Membrane API Error:", mem_resp.status_code, mem_resp.text)
+            extracted = {}
         ext_jurisdiction = extracted.get("jurisdiction", req.jurisdiction)
         keywords = extracted.get("keywords", [])
     except Exception as e:
