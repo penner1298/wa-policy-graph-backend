@@ -120,7 +120,17 @@ Return ONLY valid JSON in this exact format:
     sao_rows = []
     muni_rows = []
     
-    if not keywords:
+    if not keywords and ext_jurisdiction:
+        # If Membrane found a jurisdiction but no keywords, we MUST filter by the jurisdiction!
+        c.execute("SELECT jurisdiction, report_num, type, category, dollar_impact, summary, root_cause FROM findings WHERE jurisdiction LIKE ? LIMIT 20", (f"%{ext_jurisdiction}%",))
+        sao_rows = c.fetchall()
+        try:
+            c_muni.execute("SELECT jurisdiction, event_id, committee, meeting_date, key_action, vendor, dollar_amount, vote_outcome FROM merged_actions WHERE jurisdiction LIKE ? LIMIT 10", (f"%{ext_jurisdiction}%",))
+            muni_rows = c_muni.fetchall()
+        except:
+            muni_rows = []
+    elif not keywords and not ext_jurisdiction:
+        # Extreme fallback
         c.execute("SELECT jurisdiction, report_num, type, category, dollar_impact, summary, root_cause FROM findings LIMIT 20")
         sao_rows = c.fetchall()
         try:
