@@ -1,5 +1,4 @@
 import requests
-
 import sqlite3
 import os
 from fastapi import FastAPI
@@ -37,8 +36,9 @@ async def assign_mission(req: AssignRequest):
     return {"status": "success"}
 
 SAO_DB_PATH = "sao_2024.db"
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyADqDZM-kkvUAMGQsofUvMJrrfs6SFry_4")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 MEMBRANE_API_KEY = os.environ.get("MEMBRANE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 class SearchQuery(BaseModel):
     query: str
@@ -61,10 +61,7 @@ async def synthesize(req: SynthesizeRequest):
     import json
     
     # --- STEP 1: MEMBRANE DETERMINISTIC INTENT EXTRACTION ---
-    membrane_prompt = """You are the Membrane Semantic Gate.
-Your job is to extract rigid, unbiased search entities from the user's input.
-Ignore conversational filler. Do not answer the question. Do not summarize.
-Extract the target jurisdiction (City/County name) and 2 to 4 highly specific keywords or phrases (e.g. "police department", "interfund loan", "budget").
+    membrane_prompt = """You are the Membrane Semantic Gate. Your job is to extract rigid, unbiased search entities from the user's input. Ignore conversational filler. Do not answer the question. Do not summarize. Extract the target jurisdiction (City/County name) and 2 to 4 highly specific keywords or phrases (e.g. "police department", "interfund loan", "budget").
 
 Return ONLY valid JSON in this exact format:
 {
@@ -113,7 +110,7 @@ Return ONLY valid JSON in this exact format:
         print("Membrane Extraction Failed:", e)
         # Fallback to simple regex if Membrane fails
         stop_words = {"what", "why", "how", "when", "where", "who", "did", "does", "do", "has", "have", "had", "fail", "failed", "pass", "passed", "its", "their", "the", "a", "an", "is", "are", "was", "were", "audit", "audits", "findings", "finding", "about", "tell", "me", "show", "give", "can", "you", "city", "of", "county", "town", "district", "state", "washington"}
-        words = re.findall(r'\b\w+\b', req.query.lower())
+        words = re.findall(r"\b\w+\b", req.query.lower())
         keywords = list(set([w for w in words if w not in stop_words and len(w) > 2]))
         
         # In fallback, try to guess the jurisdiction from the query if req is generic
@@ -178,14 +175,14 @@ Return ONLY valid JSON in this exact format:
         except Exception as e:
             muni_rows = []
 
-    conn.close()
-    conn_muni.close()
-    
     # --- STEP 3: SEMANTIC BOUNCER / NO-DATA GATE ---
     # If we found NOTHING even with our filters, try a broader search for JUST the jurisdiction
     if not sao_rows and not muni_rows and ext_jurisdiction:
         c.execute("SELECT jurisdiction, report_num, type, category, dollar_impact, summary, root_cause FROM findings WHERE jurisdiction LIKE ? LIMIT 10", (f"%{ext_jurisdiction}%",))
         sao_rows = c.fetchall()
+
+    conn.close()
+    conn_muni.close()
 
     if not sao_rows and not muni_rows:
         async def fallback_generator():
@@ -196,12 +193,8 @@ Return ONLY valid JSON in this exact format:
                 "follow_up": "What other cities have records available?",
                 "citations": []
             })
-            yield f"data: {json.dumps({'chunk': fallback_json})}
-
-"
-            yield "data: [DONE]
-
-"
+            yield f"data: {json.dumps({'chunk': fallback_json})}\\n\\n"
+            yield "data: [DONE]\\n\\n"
         return StreamingResponse(fallback_generator(), media_type="text/event-stream")
     
     # --- STEP 4: FINAL STITCH (STRICT CONSTRAINT) ---
@@ -209,14 +202,14 @@ Return ONLY valid JSON in this exact format:
     for r in sao_rows:
         impact_str = f"${r[4]:,}" if r[4] else "None"
         arn = str(r[1]).replace('-', '')
-        context_lines.append(f"SAO AUDIT (2024/2025) - Agency: {r[0]} | Report #: {r[1]} | Impact: {impact_str}\nSummary: {r[5]}\nRoot Cause: {r[6]}\nSource URL: https://portal.sao.wa.gov/ReportSearch/Home/ViewReportFile?arn={arn}&isFinding=false&sp=false\n---")
+        context_lines.append(f"SAO AUDIT (2024/2025) - Agency: {r[0]} | Report #: {r[1]} | Impact: {impact_str}\\nSummary: {r[5]}\\nRoot Cause: {r[6]}\\nSource URL: https://portal.sao.wa.gov/ReportSearch/Home/ViewReportFile?arn={arn}&isFinding=false&sp=false\\n---")
         
     for r in muni_rows:
         impact_str = f"${r[6]:,}" if r[6] else "None"
         vendor_str = r[5] if r[5] else "None"
-        context_lines.append(f"CITY COUNCIL ACTION - Agency: {r[0]} | Date: {r[3]}\nAction: {r[4]}\nVendor: {vendor_str} | Impact: {impact_str}\nSource URL: https://{str(r[0]).lower().replace(' ', '')}.legistar.com/Calendar.aspx\n---")
+        context_lines.append(f"CITY COUNCIL ACTION - Agency: {r[0]} | Date: {r[3]}\\nAction: {r[4]}\\nVendor: {vendor_str} | Impact: {impact_str}\\nSource URL: https://{str(r[0]).lower().replace(' ', '')}.legistar.com/Calendar.aspx\\n---")
         
-    context_str = "\n".join(context_lines)
+    context_str = "\\n".join(context_lines)
         
     system_prompt = f"""You are the Washington Policy Graph Oracle.
 You provide deterministic, fact-based insights strictly derived from the provided database records.
@@ -235,7 +228,7 @@ CRITICAL CONSTRAINTS (THE "NO-PARROT" RULE):
 
 Return your response AS A VALID JSON OBJECT with the following exact keys:
 {{
-  "narrative": "Paragraph 1 (Historical context).\n\nParagraph 2 (Other jurisdictions).\n\nParagraph 3 (What is missing).",
+  "narrative": "Paragraph 1 (Historical context).\\n\\nParagraph 2 (Other jurisdictions).\\n\\nParagraph 3 (What is missing).",
   "actions": ["Information-seeking topic 1", "Information-seeking topic 2"],
   "follow_up": "Neutral question to explore more context",
   "citations": [
@@ -245,13 +238,14 @@ Return your response AS A VALID JSON OBJECT with the following exact keys:
 """
 
     try:
+        # Using OpenAI for reliability while Google quota/model strings are being weird
         response = completion(
             model="openai/gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": req.query}
             ],
-            api_key=GEMINI_API_KEY,
+            api_key=OPENAI_API_KEY,
             stream=True
         )
         
@@ -261,7 +255,7 @@ Return your response AS A VALID JSON OBJECT with the following exact keys:
                 for chunk in response:
                     content = chunk.choices[0].delta.content
                     if content:
-                        yield f"data: {json.dumps({'chunk': content})}\n\n"
+                        yield f"data: {json.dumps({'chunk': content})}\\n\\n"
             except Exception as e:
                 err = json.dumps({
                     "narrative": f"SYSTEM ERROR: The connection to the LLM Provider failed ({str(e)}). The API key might be expired.",
@@ -269,9 +263,9 @@ Return your response AS A VALID JSON OBJECT with the following exact keys:
                     "follow_up": "",
                     "citations": []
                 })
-                yield f"data: {json.dumps({'chunk': err})}\n\n"
+                yield f"data: {json.dumps({'chunk': err})}\\n\\n"
             finally:
-                yield "data: [DONE]\n\n"
+                yield "data: [DONE]\\n\\n"
             
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:
@@ -282,11 +276,9 @@ Return your response AS A VALID JSON OBJECT with the following exact keys:
                 "follow_up": "",
                 "citations": []
             })
-            yield f"data: {json.dumps({'chunk': err_json})}\n\n"
-            yield "data: [DONE]\n\n"
+            yield f"data: {json.dumps({'chunk': err_json})}\\n\\n"
+            yield "data: [DONE]\\n\\n"
         return StreamingResponse(err_generator(), media_type="text/event-stream")
-
-
 
 @app.get("/api/v1/feed/discoveries")
 async def get_discoveries():
@@ -349,6 +341,5 @@ async def get_discoveries():
     return {"discoveries": cards[:8]}
 
 if __name__ == "__main__":
-
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8002)
