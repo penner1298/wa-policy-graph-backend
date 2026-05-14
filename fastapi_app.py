@@ -1,3 +1,4 @@
+import requests
 
 import sqlite3
 import os
@@ -72,7 +73,6 @@ Return ONLY valid JSON in this exact format:
 }
 """
     
-    import requests
     try:
         headers = {
             "Authorization": f"Bearer {MEMBRANE_API_KEY}",
