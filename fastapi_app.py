@@ -189,14 +189,19 @@ Return ONLY valid JSON in this exact format:
 
     if not sao_rows and not muni_rows:
         async def fallback_generator():
+            import json
             fallback_json = json.dumps({
                 "narrative": f"I have searched the Policy Graph. While I understand you are asking about {ext_jurisdiction}, I do not currently have verified municipal documents or SAO findings expanding on this event yet. Assign me to monitor this topic and I will alert you when official documents are ingested.",
                 "actions": ["Search another agency", "View statewide trends", "Analyze regional impacts"],
                 "follow_up": "What other cities have records available?",
                 "citations": []
             })
-            yield f"data: {json.dumps({'chunk': fallback_json})}\n\n"
-            yield "data: [DONE]\n\n"
+            yield f"data: {json.dumps({'chunk': fallback_json})}
+
+"
+            yield "data: [DONE]
+
+"
         return StreamingResponse(fallback_generator(), media_type="text/event-stream")
     
     # --- STEP 4: FINAL STITCH (STRICT CONSTRAINT) ---
