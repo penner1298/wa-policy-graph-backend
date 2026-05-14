@@ -7,6 +7,7 @@ from litellm import completion
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import json
+import re
 
 app = FastAPI()
 
@@ -255,12 +256,16 @@ Return your response AS A VALID JSON OBJECT with the following exact keys:
             
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:
-        return {
-            "narrative": f"Error communicating with the Oracle model: {str(e)}",
-            "actions": [],
-            "follow_up": "",
-            "citations": []
-        }
+        async def err_generator():
+            err_json = json.dumps({
+                "narrative": f"SYSTEM ERROR (Outer): {str(e)}",
+                "actions": [],
+                "follow_up": "",
+                "citations": []
+            })
+            yield f"data: {json.dumps({'chunk': err_json})}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(err_generator(), media_type="text/event-stream")
 
 
 
