@@ -103,13 +103,23 @@ Return ONLY valid JSON in this exact format:
             extracted = {}
         ext_jurisdiction = extracted.get("jurisdiction", req.jurisdiction)
         keywords = extracted.get("keywords", [])
+        
+        # If Membrane failed and ext_jurisdiction is Washington State, we need to extract from query instead.
+        if mem_resp.status_code != 200:
+            raise Exception("Membrane API Error")
+            
     except Exception as e:
         print("Membrane Extraction Failed:", e)
-        ext_jurisdiction = req.jurisdiction
         # Fallback to simple regex if Membrane fails
-        stop_words = {"what", "why", "how", "when", "where", "who", "did", "does", "do", "has", "have", "had", "fail", "failed", "pass", "passed", "its", "their", "the", "a", "an", "is", "are", "was", "were", "audit", "audits", "findings", "finding", "about", "tell", "me", "show", "give", "can", "you", "city", "of", "county", "town", "district"}
-        words = re.findall(r'\b\w+\b', (req.jurisdiction + " " + req.query).lower())
+        stop_words = {"what", "why", "how", "when", "where", "who", "did", "does", "do", "has", "have", "had", "fail", "failed", "pass", "passed", "its", "their", "the", "a", "an", "is", "are", "was", "were", "audit", "audits", "findings", "finding", "about", "tell", "me", "show", "give", "can", "you", "city", "of", "county", "town", "district", "state", "washington"}
+        words = re.findall(r'\b\w+\b', req.query.lower())
         keywords = list(set([w for w in words if w not in stop_words and len(w) > 2]))
+        
+        # In fallback, try to guess the jurisdiction from the query if req is generic
+        ext_jurisdiction = req.jurisdiction
+        if req.jurisdiction == "Washington State" and keywords:
+             ext_jurisdiction = keywords[0].title() # Just guess the first keyword as the jurisdiction
+
 
     # --- STEP 2: DUMB QUERY (NO AGENTIC BIAS) ---
     conn = sqlite3.connect(SAO_DB_PATH)
