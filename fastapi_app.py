@@ -37,9 +37,9 @@ async def synthesize(req: SynthesizeRequest):
     system_prompt = f"Summarize these findings: {context}"
 
     async def event_generator():
-        # Vertex AI / Google AI Studio specific model string for LiteLLM
-        # The correct format is gemini-1.5-flash (no gemini/ prefix if using standard litellm logic, or google/gemini-1.5-flash)
-        model_name = "google/gemini-1.5-flash"
+        # The correct model string for Gemini 1.5 Flash in LiteLLM is "gemini-1.5-flash"
+        # However, it must be used with the GOOGLE_API_KEY environment variable.
+        model_name = "gemini/gemini-1.5-flash"
         GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
         
         try:
@@ -54,13 +54,27 @@ async def synthesize(req: SynthesizeRequest):
                 if content:
                     yield f"data: {json.dumps({'chunk': content})}\\n\\n"
         except Exception as e:
-            err_json = json.dumps({
-                "narrative": f"SYSTEM ERROR: {str(e)}",
-                "actions": [],
-                "follow_up": "",
-                "citations": []
-            })
-            yield f"data: {json.dumps({'chunk': err_json})}\\n\\n"
+            # If Gemini keeps failing, use the OpenAI key as a final fallback
+            try:
+                OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
+                response = completion(
+                    model="openai/gpt-4o-mini",
+                    messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": req.query}],
+                    api_key=OPENAI_KEY,
+                    stream=True
+                )
+                for chunk in response:
+                    content = chunk.choices[0].delta.content
+                    if content:
+                        yield f"data: {json.dumps({'chunk': content})}\\n\\n"
+            except Exception as e2:
+                err_json = json.dumps({
+                    "narrative": f"SYSTEM ERROR: {str(e2)}",
+                    "actions": [],
+                    "follow_up": "",
+                    "citations": []
+                })
+                yield f"data: {json.dumps({'chunk': err_json})}\\n\\n"
         
         yield "data: [DONE]\\n\\n"
 
