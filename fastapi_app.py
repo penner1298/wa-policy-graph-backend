@@ -163,7 +163,13 @@ Return ONLY valid JSON in this exact format:
             muni_cond.append("(jurisdiction LIKE ? OR committee LIKE ? OR key_action LIKE ? OR vendor LIKE ?)")
             muni_params.extend([f"%{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
             
-        c.execute(f"SELECT jurisdiction, report_num, type, category, dollar_impact, summary, root_cause FROM findings WHERE {' OR '.join(conditions)} LIMIT 20", params)
+        # If we have a jurisdiction, prepend it to the query to ensure relevant results appear first
+        final_query = f"SELECT jurisdiction, report_num, type, category, dollar_impact, summary, root_cause FROM findings WHERE {' OR '.join(conditions)}"
+        if ext_jurisdiction:
+            final_query = f"SELECT jurisdiction, report_num, type, category, dollar_impact, summary, root_cause FROM findings WHERE (jurisdiction LIKE ?) AND ({' OR '.join(conditions)})"
+            params = [f"%{ext_jurisdiction}%"] + params
+        
+        c.execute(f"{final_query} LIMIT 20", params)
         sao_rows = c.fetchall()
         
         try:
@@ -176,6 +182,11 @@ Return ONLY valid JSON in this exact format:
     conn_muni.close()
     
     # --- STEP 3: SEMANTIC BOUNCER / NO-DATA GATE ---
+    # If we found NOTHING even with our filters, try a broader search for JUST the jurisdiction
+    if not sao_rows and not muni_rows and ext_jurisdiction:
+        c.execute("SELECT jurisdiction, report_num, type, category, dollar_impact, summary, root_cause FROM findings WHERE jurisdiction LIKE ? LIMIT 10", (f"%{ext_jurisdiction}%",))
+        sao_rows = c.fetchall()
+
     if not sao_rows and not muni_rows:
         async def fallback_generator():
             fallback_json = json.dumps({
