@@ -36,6 +36,7 @@ async def assign_mission(req: AssignRequest):
 
 SAO_DB_PATH = "sao_2024.db"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBBo12jBpSP67-m6OBKFUyUEGMnufHJaME")
+MEMBRANE_API_KEY = os.environ.get("MEMBRANE_API_KEY", "")
 
 class SearchQuery(BaseModel):
     query: str
