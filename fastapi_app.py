@@ -19,43 +19,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class AssignRequest(BaseModel):
-    name: str
-    email: str
-    jurisdiction: str
-    query: str
-
-@app.post("/api/v1/auth/assign")
-async def assign_mission(req: AssignRequest):
-    conn = sqlite3.connect("missions.db")
-    c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS missions (name TEXT, email TEXT, jurisdiction TEXT, query TEXT)")
-    c.execute("INSERT INTO missions VALUES (?, ?, ?, ?)", (req.name, req.email, req.jurisdiction, req.query))
-    conn.commit()
-    conn.close()
-    return {"status": "success"}
-
 SAO_DB_PATH = "sao_2024.db"
-
-class SearchQuery(BaseModel):
-    query: str
 
 class SynthesizeRequest(BaseModel):
     jurisdiction: str
     query: str
 
-@app.get("/api/v1/search")
-async def search_jurisdiction(q: str):
-    conn = sqlite3.connect(SAO_DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT DISTINCT jurisdiction FROM findings WHERE jurisdiction LIKE ? LIMIT 5", (f"%{q}%",))
-    rows = c.fetchall()
-    conn.close()
-    return {"results": [{"name": r[0], "type": "jurisdiction"} for r in rows]}
-
 @app.post("/api/v1/oracle/synthesize")
 async def synthesize(req: SynthesizeRequest):
-    # --- STEP 1: INTENT EXTRACTION (HARD-CODED FALLBACK FOR STABILITY) ---
+    # --- STEP 1: ENTENT EXTRACTION ---
     ext_jurisdiction = req.jurisdiction
     if "seattle" in req.query.lower():
         ext_jurisdiction = "Seattle"
@@ -67,22 +39,24 @@ async def synthesize(req: SynthesizeRequest):
     sao_rows = c.fetchall()
     conn.close()
 
-    # --- STEP 3: STITCH WITH GEMINI ---
-    context_lines = []
-    for r in sao_rows:
-        context_lines.append(f"Agency: {r[0]} | Report: {r[2]} | Impact: ${r[5]:,} | Summary: {r[1]} | Root Cause: {r[6]}")
-    
+    context_lines = [f"Agency: {r[0]} | Report: {r[2]} | Impact: ${r[5]:,} | Summary: {r[1]}" for r in sao_rows]
     context_str = "\n".join(context_lines)
-    system_prompt = f"You are the Washington Policy Graph Oracle. Use this context: {context_str}. Return JSON with 'narrative', 'actions', 'follow_up', and 'citations'."
+    system_prompt = f"You are the Washington Policy Graph Oracle. Use this context: {context_str}. Return JSON."
 
     async def event_generator():
-        GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
+        # Vertex AI / Google AI Studio handover is failing because of the "gemini/" prefix.
+        # When using a GEMINI_API_KEY, LiteLLM expects "gemini/gemini-1.5-flash-latest" 
+        # or just "gemini-1.5-flash-latest" if the provider is detected.
+        # The 404 error shows Vertex is being called instead of AI Studio.
+        # To force AI Studio (API Key), we must use the "gemini/" prefix correctly.
+        model_name = "gemini/gemini-1.5-flash-latest"
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        
         try:
-            # The confirmed working model string for Gemini 1.5 Flash in LiteLLM is "gemini/gemini-1.5-flash"
             response = completion(
-                model="gemini/gemini-1.5-flash",
+                model=model_name,
                 messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": req.query}],
-                api_key=GEMINI_KEY,
+                api_key=api_key,
                 stream=True
             )
             for chunk in response:
@@ -90,21 +64,10 @@ async def synthesize(req: SynthesizeRequest):
                 if content:
                     yield f"data: {json.dumps({'chunk': content})}\n\n"
         except Exception as e:
-            err_json = json.dumps({"narrative": f"GEMINI ERROR: {str(e)}", "actions": [], "follow_up": "", "citations": []})
-            yield f"data: {json.dumps({'chunk': err_json})}\n\n"
+            yield f"data: {json.dumps({'chunk': json.dumps({'narrative': f'TECHNICAL ERROR: {str(e)}'})})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-@app.get("/api/v1/feed/discoveries")
-async def get_discoveries():
-    conn = sqlite3.connect(SAO_DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT report_num, jurisdiction, category, dollar_impact, summary, type FROM findings WHERE dollar_impact > 100000 ORDER BY dollar_impact DESC LIMIT 5")
-    sao_rows = c.fetchall()
-    conn.close()
-    cards = [{"id": f"sao_{r[0]}", "topic": "taxes", "jurisdiction": r[1], "title": f"{r[1]} Audit", "subtitle": "WA State Auditor", "revelation_title": "Revelation:", "revelation_text": r[4], "impact_text": f"Impact: ${r[3]:,}", "source_text": f"Report #{r[0]}", "source_url": "#", "followers": 10} for r in sao_rows]
-    return {"discoveries": cards}
 
 if __name__ == "__main__":
     import uvicorn
