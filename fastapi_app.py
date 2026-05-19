@@ -54,7 +54,7 @@ async def synthesize(req: SynthesizeRequest):
     # Fallback to simple extraction heuristic if Membrane didn't yield a jurisdiction change
     if ext_jurisdiction == req.jurisdiction:
         raw_query = req.query.lower()
-        wa_cities = ["seattle", "tacoma", "bellevue", "spokane", "everett", "kent", "renton", "yakima"]
+        wa_cities = ["seattle", "tacoma", "bellevue", "spokane", "everett", "kent", "renton", "yakima", "mabton"]
         for city in wa_cities:
             if city in raw_query:
                 ext_jurisdiction = city.title()
@@ -64,36 +64,69 @@ async def synthesize(req: SynthesizeRequest):
     ext_jurisdiction = re.sub(r"[']?s$", "", ext_jurisdiction.strip())
 
     # --- STEP 2: DATABASE QUERY ---
+    # Query SAO Database
     conn = sqlite3.connect(SAO_DB_PATH)
     c = conn.cursor()
     
-    query_str = "SELECT jurisdiction, summary, report_num, type, category, dollar_impact, root_cause FROM findings WHERE 1=1"
-    params = []
+    query_str_sao = "SELECT jurisdiction, summary, report_num, type, category, dollar_impact, root_cause FROM findings WHERE 1=1"
+    params_sao = []
     if ext_jurisdiction and ext_jurisdiction != "Washington State":
-        query_str += " AND jurisdiction LIKE ?"
-        params.append(f"%{ext_jurisdiction}%")
+        query_str_sao += " AND jurisdiction LIKE ?"
+        params_sao.append(f"%{ext_jurisdiction}%")
         
     if keywords:
         kw_clauses = ["summary LIKE ?" for _ in keywords]
-        query_str += f" AND ({' OR '.join(kw_clauses)})"
-        params.extend([f"%{kw}%" for kw in keywords])
+        query_str_sao += f" AND ({' OR '.join(kw_clauses)})"
+        params_sao.extend([f"%{kw}%" for kw in keywords])
         
-    query_str += " LIMIT 10"
-    
-    c.execute(query_str, params)
+    query_str_sao += " LIMIT 10"
+    c.execute(query_str_sao, params_sao)
     sao_rows = c.fetchall()
     
-    # Broad fallback if Membrane found keywords but missed the exact jurisdiction string
     if not sao_rows and ext_jurisdiction and ext_jurisdiction != "Washington State":
         c.execute("SELECT jurisdiction, summary, report_num, type, category, dollar_impact, root_cause FROM findings WHERE jurisdiction LIKE ? LIMIT 10", (f"%{ext_jurisdiction}%",))
         sao_rows = c.fetchall()
-        
     conn.close()
 
+    # Query Municipal Intent Database
+    muni_rows = []
+    try:
+        conn_muni = sqlite3.connect("municipal_intent.db")
+        c_muni = conn_muni.cursor()
+        
+        query_str_muni = "SELECT jurisdiction, event_id, committee, meeting_date, key_action, vendor_name, dollar_amount, pass_fail FROM merged_actions WHERE 1=1"
+        params_muni = []
+        if ext_jurisdiction and ext_jurisdiction != "Washington State":
+            query_str_muni += " AND jurisdiction LIKE ?"
+            params_muni.append(f"%{ext_jurisdiction}%")
+            
+        if keywords:
+            kw_clauses_muni = ["key_action LIKE ?" for _ in keywords]
+            query_str_muni += f" AND ({' OR '.join(kw_clauses_muni)})"
+            params_muni.extend([f"%{kw}%" for kw in keywords])
+            
+        query_str_muni += " LIMIT 5"
+        c_muni.execute(query_str_muni, params_muni)
+        muni_rows = c_muni.fetchall()
+        
+        if not muni_rows and ext_jurisdiction and ext_jurisdiction != "Washington State":
+            c_muni.execute("SELECT jurisdiction, event_id, committee, meeting_date, key_action, vendor_name, dollar_amount, pass_fail FROM merged_actions WHERE jurisdiction LIKE ? LIMIT 5", (f"%{ext_jurisdiction}%",))
+            muni_rows = c_muni.fetchall()
+            
+        conn_muni.close()
+    except Exception as e:
+        print("Muni DB Error:", e)
+
+    # Combine Context
     context_lines = []
     for r in sao_rows:
         impact = f"${r[5]:,}" if r[5] else "None"
-        context_lines.append(f"Agency: {r[0]} | Report: {r[2]} | Impact: {impact} | Summary: {r[1]}")
+        context_lines.append(f"[SAO AUDIT] Agency: {r[0]} | Report: {r[2]} | Impact: {impact} | Summary: {r[1]}")
+        
+    for r in muni_rows:
+        impact = f"${r[6]:,}" if r[6] else "None"
+        context_lines.append(f"[CITY COUNCIL ACTION] Agency: {r[0]} | Date: {r[3]} | Action: {r[4]} | Vendor: {r[5]} | Impact: {impact} | Vote: {r[7]}")
+
         
     context_str = "\n".join(context_lines)
     
