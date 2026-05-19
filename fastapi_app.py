@@ -47,7 +47,7 @@ async def synthesize(req: SynthesizeRequest):
         # Vertex AI / Google AI Studio handover is failing because of the "gemini/" prefix.
         # LiteLLM/Vertex requires "gemini/gemini-1.5-flash"
         model_name = "gemini/gemini-2.5-flash"
-        api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyD85RsRSQF8fRT8IDJEMxvmWXHkhBI1x5Q")
+        api_key = os.environ.get("GEMINI_API_KEY", "")
         
         try:
             response = completion(
