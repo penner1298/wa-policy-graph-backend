@@ -26,28 +26,68 @@ class SynthesizeRequest(BaseModel):
 
 @app.post("/api/v1/oracle/synthesize")
 async def synthesize(req: SynthesizeRequest):
-    # --- STEP 1: INTENT EXTRACTION ---
-    # Very basic fallback for typos or missing jurisdiction in query
+    # --- STEP 1: INTENT EXTRACTION (MEMBRANE API) ---
     ext_jurisdiction = req.jurisdiction
+    keywords = []
     
-    # Simple extraction heuristic to catch missing apostrophes or common names
-    raw_query = req.query.lower()
-    
-    # Common WA cities that might get typo'd
-    wa_cities = ["seattle", "tacoma", "bellevue", "spokane", "everett", "kent", "renton", "yakima"]
-    for city in wa_cities:
-        if city in raw_query:
-            ext_jurisdiction = city.title()
-            break
-            
+    # Try the Membrane API first (Deterministic Semantic Gate)
+    MEMBRANE_API_KEY = os.environ.get("MEMBRANE_API_KEY", "")
+    if MEMBRANE_API_KEY:
+        try:
+            membrane_prompt = """You are the Membrane Semantic Gate. Extract jurisdiction and 2-4 keywords. Return JSON: {"jurisdiction": "City", "keywords": ["kw1", "kw2"]}"""
+            headers = {"Authorization": f"Bearer {MEMBRANE_API_KEY}", "Content-Type": "application/json"}
+            payload = {
+                "model": "membrane-engagement-layer",
+                "messages": [{"role": "system", "content": membrane_prompt}, {"role": "user", "content": req.query}],
+                "response_format": {"type": "json_object"}
+            }
+            import requests
+            res = requests.post("https://membrane-api.com/v1/chat/completions", headers=headers, json=payload, timeout=5)
+            if res.status_code == 200:
+                parsed = json.loads(res.json()["choices"][0]["message"]["content"])
+                ext_jurisdiction = parsed.get("jurisdiction", req.jurisdiction)
+                keywords = parsed.get("keywords", [])
+        except Exception as e:
+            print("Membrane API failed, falling back to heuristics:", e)
+            pass
+
+    # Fallback to simple extraction heuristic if Membrane didn't yield a jurisdiction change
+    if ext_jurisdiction == req.jurisdiction:
+        raw_query = req.query.lower()
+        wa_cities = ["seattle", "tacoma", "bellevue", "spokane", "everett", "kent", "renton", "yakima"]
+        for city in wa_cities:
+            if city in raw_query:
+                ext_jurisdiction = city.title()
+                break
+
     # Remove "'s" or "s" for exact DB matching
     ext_jurisdiction = re.sub(r"[']?s$", "", ext_jurisdiction.strip())
 
     # --- STEP 2: DATABASE QUERY ---
     conn = sqlite3.connect(SAO_DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT jurisdiction, summary, report_num, type, category, dollar_impact, root_cause FROM findings WHERE jurisdiction LIKE ? LIMIT 10", (f"%{ext_jurisdiction}%",))
+    
+    query_str = "SELECT jurisdiction, summary, report_num, type, category, dollar_impact, root_cause FROM findings WHERE 1=1"
+    params = []
+    if ext_jurisdiction and ext_jurisdiction != "Washington State":
+        query_str += " AND jurisdiction LIKE ?"
+        params.append(f"%{ext_jurisdiction}%")
+        
+    if keywords:
+        kw_clauses = ["summary LIKE ?" for _ in keywords]
+        query_str += f" AND ({' OR '.join(kw_clauses)})"
+        params.extend([f"%{kw}%" for kw in keywords])
+        
+    query_str += " LIMIT 10"
+    
+    c.execute(query_str, params)
     sao_rows = c.fetchall()
+    
+    # Broad fallback if Membrane found keywords but missed the exact jurisdiction string
+    if not sao_rows and ext_jurisdiction and ext_jurisdiction != "Washington State":
+        c.execute("SELECT jurisdiction, summary, report_num, type, category, dollar_impact, root_cause FROM findings WHERE jurisdiction LIKE ? LIMIT 10", (f"%{ext_jurisdiction}%",))
+        sao_rows = c.fetchall()
+        
     conn.close()
 
     context_lines = []
