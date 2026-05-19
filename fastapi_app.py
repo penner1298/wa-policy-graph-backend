@@ -1,4 +1,3 @@
-import requests
 import sqlite3
 import os
 import json
@@ -27,11 +26,23 @@ class SynthesizeRequest(BaseModel):
 
 @app.post("/api/v1/oracle/synthesize")
 async def synthesize(req: SynthesizeRequest):
-    # --- STEP 1: ENTENT EXTRACTION ---
+    # --- STEP 1: INTENT EXTRACTION ---
+    # Very basic fallback for typos or missing jurisdiction in query
     ext_jurisdiction = req.jurisdiction
-    if "seattle" in req.query.lower():
-        ext_jurisdiction = "Seattle"
     
+    # Simple extraction heuristic to catch missing apostrophes or common names
+    raw_query = req.query.lower()
+    
+    # Common WA cities that might get typo'd
+    wa_cities = ["seattle", "tacoma", "bellevue", "spokane", "everett", "kent", "renton", "yakima"]
+    for city in wa_cities:
+        if city in raw_query:
+            ext_jurisdiction = city.title()
+            break
+            
+    # Remove "'s" or "s" for exact DB matching
+    ext_jurisdiction = re.sub(r"[']?s$", "", ext_jurisdiction.strip())
+
     # --- STEP 2: DATABASE QUERY ---
     conn = sqlite3.connect(SAO_DB_PATH)
     c = conn.cursor()
@@ -39,22 +50,55 @@ async def synthesize(req: SynthesizeRequest):
     sao_rows = c.fetchall()
     conn.close()
 
-    context_lines = [f"Agency: {r[0]} | Report: {r[2]} | Impact: ${r[5]:,} | Summary: {r[1]}" for r in sao_rows]
+    context_lines = []
+    for r in sao_rows:
+        impact = f"${r[5]:,}" if r[5] else "None"
+        context_lines.append(f"Agency: {r[0]} | Report: {r[2]} | Impact: {impact} | Summary: {r[1]}")
+        
     context_str = "\n".join(context_lines)
-    system_prompt = f"You are the Washington Policy Graph Oracle. Use this context: {context_str}. Return JSON."
+    
+    if not sao_rows:
+        context_str = f"No findings currently in the database for {ext_jurisdiction}."
+
+    # --- STEP 3: SYNTHESIS ---
+    system_prompt = f"""You are the Washington Policy Graph Oracle.
+You provide deep insights on municipal audits and policies.
+The user is asking about: {ext_jurisdiction}.
+
+CORE DIRECTIVES:
+1. VOICE & STRUCTURE: Use sharp, simple, punchy language. Break your response into 2-3 readable paragraphs.
+2. SYNTHESIS: Use the provided context to answer the user's question. If the context says 'No findings', explain that.
+3. FORMAT: You MUST return ONLY valid JSON matching this exact schema:
+{{
+  "narrative": "Your summarized response here.",
+  "citations": [
+    {{"text": "Agency - Report #", "url": "https://portal.sao.wa.gov/"}}
+  ],
+  "actions": [
+    "View financial audit details",
+    "Read meeting transcripts"
+  ]
+}}
+
+CONTEXT:
+{context_str}
+"""
 
     async def event_generator():
-        # Vertex AI / Google AI Studio handover is failing because of the "gemini/" prefix.
-        # LiteLLM/Vertex requires "gemini/gemini-1.5-flash"
+        # LiteLLM/Vertex requires "gemini/gemini-2.5-flash"
         model_name = "gemini/gemini-2.5-flash"
         api_key = os.environ.get("GEMINI_API_KEY", "")
         
         try:
             response = completion(
                 model=model_name,
-                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": req.query}],
+                messages=[
+                    {"role": "system", "content": system_prompt}, 
+                    {"role": "user", "content": req.query}
+                ],
                 api_key=api_key,
-                stream=True
+                stream=True,
+                response_format={"type": "json_object"}
             )
             for chunk in response:
                 content = chunk.choices[0].delta.content
